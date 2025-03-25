@@ -8,21 +8,40 @@ MIN_YEAR = 2021
 
 CHECKPOINT_DIR = '.checkpoints/proposal-compare'
 
+BG_COLOR_NAMES = 'fabf8f'
+BG_COLOR_HEADER = '95b3d7'
+
+
 def nice_code(code):
-    ret = []
-    code = code[2:]
-    while code:
-        ret.append(code[:2])
-        code = code[2:]
-    return '.'.join(ret)
-    
+    return code[2:]
+    # With dots:
+    # ret = []
+    # code = code[2:]
+    # return f'="{code}"'
+    # while code:
+    #     ret.append(code[:2])
+    #     code = code[2:]
+    # return '.'.join(ret)
+
+def check_for_active(row):
+    if (row['net_allocated'] or row['net_revised'] or row['net_executed']):
+        return True
+    history = row.get('history') or {}
+    for year, rec in history.items():
+        year = int(year)
+        if year >= MIN_YEAR:
+            if rec.get('net_allocated') or rec.get('net_revised') or rec.get('net_executed'):
+                return True
+    return False
 
 def get_proposal_data():
     raw = DF.Flow(
         DF.load(BUDGET_SOURCE_DATAPACKAGE),
         DF.filter_rows(lambda row: row['year'] >= MIN_YEAR),
         DF.filter_rows(lambda row: not row['code'].startswith('0000')),
-        DF.filter_rows(lambda row: len(row['code']) == 8),
+        DF.filter_rows(lambda row: not row['code'].startswith('C')),
+        DF.filter_rows(lambda row: row['code'] < '0089'),
+        DF.filter_rows(lambda row: len(row['code']) >= 4),
         DF.select_fields([
             'code',
             'year',
@@ -43,8 +62,11 @@ def get_proposal_data():
         DF.load(CONNECTED_SOURCE_DATAPACKAGE),
         DF.filter_rows(lambda row: row['year'] >= MIN_YEAR),
         DF.filter_rows(lambda row: not row['code'].startswith('0000')),
-        DF.filter_rows(lambda row: len(row['code']) == 8),
-        DF.filter_rows(lambda row: row['net_allocated']  or row['net_revised']  or row['net_executed']),
+        DF.filter_rows(lambda row: not row['code'].startswith('C')),
+        DF.filter_rows(lambda row: row['code'] < '0089'),
+        DF.filter_rows(lambda row: len(row['code']) >= 4),
+        DF.filter_rows(check_for_active),
+        # DF.filter_rows(lambda row: (len(row['code']) < 10) or (row['net_allocated'] or row['net_revised'] or row['net_executed'])),
         DF.select_fields([
             'code',
             'year',
@@ -60,13 +82,14 @@ def get_proposal_data():
 
 class Table():
 
-    def __init__(self, title, group_fields=None):
+    def __init__(self, title, group_fields=None, cleanup_fields=None):
         self.headers = dict()
         self.rows = list()
         self.row = dict()
         self.title = title
         self.groups = dict()
         self.group_fields = group_fields
+        self.cleanup_fields = cleanup_fields
 
     def new_row(self, key):
         self.row = dict()
@@ -81,7 +104,7 @@ class Table():
             header_options = dict(**options)
             header_options['bold'] = True
             header_options['border_bottom'] = True
-            header_options['background_color'] = 'd7c6b4'
+            header_options['background_color'] = BG_COLOR_HEADER
             self.headers[key] = dict(
                 value=key,
                 score=header_order,
@@ -127,15 +150,28 @@ class Table():
     def save(self, filename):
         headers = sorted(self.headers.values(), key=lambda x: x['score'])
         rows = sorted(self.rows, key=lambda x: x[0])
+        print('TOTAL ROWS', len(rows))
+        # row_to_ids = dict((x[0], i+2) for i, x in enumerate(rows))
         rows = [x[1] for x in rows]
+        if self.cleanup_fields:
+            running_header = [None] * len(self.cleanup_fields)
         for i, row in enumerate(rows):
             for v in row.values():
                 if v.get('parity'):
                     v['parity'] = i % 2
             if self.group_fields:
                 for l, f in enumerate(self.group_fields):
-                    if f in row:
+                    if f in row and row[f]['value']:
                         self.group(i+2, l+1, row[f]['value'])
+            if self.cleanup_fields:
+                for j, f in enumerate(self.cleanup_fields):
+                    if f in row and row[f]['value']:
+                        if running_header[j] != row[f]['value']:
+                            running_header[j] = row[f]['value']
+                            for k in range(j+1, len(self.cleanup_fields)):
+                                running_header[k] = None
+                        else:
+                            row[f]['value'] = ''
 
         self.wb = openpyxl.Workbook()
         self.ws = self.wb.active
@@ -155,15 +191,21 @@ class Table():
                 
         # Make sure all columns are wide enough
         for column in self.ws.columns:
-            max_length = max(len(str(cell.value)) for cell in column)
+            max_length = max(
+                (len(f"{cell.value:,.1f}") if isinstance(cell.value, decimal.Decimal) else len(str(cell.value)))
+                for cell in column)
             adjusted_width = (max_length + 2) * 1.0
+            adjusted_width = min(adjusted_width, 175/7)
             self.ws.column_dimensions[column[0].column_letter].width = adjusted_width
 
         for level in sorted(self.groups.keys()):
+            print('GROUPING', level, self.groups.keys())
             self.ws.sheet_properties.outlinePr.summaryBelow = False
             for k, group in self.groups[level].items():
+                # print('GROUPING: ', level, k, group)
+                assert len(group) == (max(group) - min(group) + 1)
                 if len(group) > 1:
-                    self.ws.row_dimensions.group(min(group)+1, max(group), outline_level=level)
+                    self.ws.row_dimensions.group(min(group)+1, max(group), outline_level=level, hidden=level==3)
 
         self.ws.freeze_panes = self.ws['A2']
 
@@ -184,7 +226,25 @@ def process_data():
     # table_rows = list()
     # headers = dict()
 
-    table = Table('השוואת הצעת התקציב', ['קוד סעיף', 'קוד תחום'])
+    titles_for_code_aux = dict()
+    for item in raw_map.values():
+        if item.get('net_allocated') or item.get('net_revised') or item.get('net_executed'):
+            titles_for_code_aux.setdefault(item['code'], dict()).setdefault(item['title'], set()).add(item['year'])
+    for k in titles_for_code_aux:
+        titles_for_code_aux[k] = sorted((max(y), t) for t, y in titles_for_code_aux[k].items())
+    titles_for_code = dict(
+        (k, v[-1])
+        for k, v in titles_for_code_aux.items()
+    )
+    titles_comments_for_code = dict()
+    for k, v in titles_for_code_aux.items():
+        if len(v) > 1:
+            titles_comments_for_code[k] = ', '.join(f'עד שנת {y} נקרא {t}' for y, t in v[:-1])
+            print('TFC', k, v)
+
+    table = Table('השוואת הצעת התקציב', 
+                  group_fields=['קוד סעיף', 'קוד תחום', 'קוד תכנית'],
+                  cleanup_fields=['קוד סעיף', 'שם סעיף', 'קוד תחום', 'שם תחום', 'קוד תכנית', 'שם תכנית'])
 
     for year in range(max_year, MIN_YEAR-1, -1):
         print(f'PROCESSING YEAR {year}, got so far {len(used_keys)} keys')
@@ -193,6 +253,10 @@ def process_data():
                 continue
             code = item['code']
             title = item['title']
+            # max_year_, title = titles_for_code[code]
+            # if item['year'] != max_year:
+            #     print(f'Item {code} is not max year {item["year"]} != {max_year}')
+            #     continue
             # print(f'Processing {year} {code}')
             key = (year, code)
             if key in used_keys:
@@ -209,14 +273,39 @@ def process_data():
                         _year_codes = [nice_code(x.split(':')[0]) for x in _rec['code_titles']]
                         keys.append((_year, _year_codes))
             # print('KEYS', keys)
-            table.new_row((code, -year))
+
             hierarchy = item['hierarchy']
-            table.set('קוד סעיף', f'="{nice_code(hierarchy[-2][0])}"', 0, background_color='ffd7b5')
-            table.set('שם סעיף', hierarchy[-2][1], 1, background_color='ffd7b5')
-            table.set('קוד תחום', f'="{nice_code(hierarchy[-1][0])}"', 10, background_color='ffd7b5')
-            table.set('שם תחום', hierarchy[-1][1], 11, background_color='ffd7b5')
-            table.set('קוד תכנית', code, 20, bold=True, background_color='ffd7b5')
-            table.set('שם תכנית', title, 21, bold=True, background_color='ffd7b5')
+            code_titles = [(nice_code(h[0]), titles_for_code[nice_code(h[0])][1], None) for h in hierarchy[1:]] + [(code, title, titles_comments_for_code.get(code))]
+
+            row_key = (code, year)
+            table.new_row(row_key)
+
+            table.set('קוד סעיף', '', 0, background_color=BG_COLOR_NAMES)
+            table.set('שם סעיף', '', 1, background_color=BG_COLOR_NAMES)
+            table.set('קוד תחום', '', 10, background_color=BG_COLOR_NAMES)
+            table.set('שם תחום', '', 11, background_color=BG_COLOR_NAMES)
+            table.set('קוד תכנית', '', 20, background_color=BG_COLOR_NAMES)
+            table.set('שם תכנית', '', 21, background_color=BG_COLOR_NAMES)
+            table.set('קוד תקנה', '', 30, background_color=BG_COLOR_NAMES)
+            table.set('שם תקנה', '', 31, background_color=BG_COLOR_NAMES)
+
+            # print('CCCC', code_titles)
+            if len(code_titles) > 0:
+                _code, _title, _comment = code_titles.pop(0)
+                table.set('קוד סעיף', f'="{_code}"', 0, background_color=BG_COLOR_NAMES)
+                table.set('שם סעיף', _title, 1, background_color=BG_COLOR_NAMES, comment=_comment)
+            if len(code_titles) > 0:
+                _code, _title, _comment = code_titles.pop(0)
+                table.set('קוד תחום', f'="{_code}"', 10, background_color=BG_COLOR_NAMES)
+                table.set('שם תחום', _title, 11, background_color=BG_COLOR_NAMES, comment=_comment)
+            if len(code_titles) > 0:
+                _code, _title, _comment = code_titles.pop(0)
+                table.set('קוד תכנית', f'="{_code}"', 20, bold=True, background_color=BG_COLOR_NAMES)
+                table.set('שם תכנית', _title, 21, bold=True, background_color=BG_COLOR_NAMES, comment=_comment)
+            if len(code_titles) > 0:
+                _code, _title, _comment = code_titles.pop(0)
+                table.set('קוד תקנה', f'="{_code}"', 30, background_color=BG_COLOR_NAMES)
+                table.set('שם תקנה', _title, 31, background_color=BG_COLOR_NAMES, comment=_comment)
             for _year, _codes in keys:
                 sum_allocated = None
                 sum_revised = None
@@ -245,23 +334,34 @@ def process_data():
                     options = dict(
                         bold=_year == max_year,
                         parity=True,
-                        number_format='#,##0,,'
+                        number_format='#,##0.0'
                     )
                 codes = ', '.join(codes)
                 titles = ', '.join(titles)
                 if codes != code or titles != title:
-                    options['comment'] = f'בשנת {_year} התכנית נקראה {titles} - {codes}'
+                    options['comment'] = f'בשנת {_year} הסעיף נקרא {titles} - {codes}'
                 if sum_allocated is not None:
-                    table.set(f'{_year} תקציב מקורי', sum_allocated, _year*100 + 1, **options)
+                    if sum_allocated == 0 and _year != max_year:
+                        comment = options.get('comment') or ''
+                        if comment:
+                            comment += '\n'
+                        if sum_revised:
+                            comment += f':התקציב המאושר {sum_revised:,.0f}'
+                        elif sum_executed:
+                            comment += f':התקציב המבוצע {sum_executed:,.0f}'
+                        options_ = dict(options, comment=comment)
+                    else:
+                        options_ = options
+                    table.set(f'{_year}', sum_allocated/1000000, _year*100 + 1, **options_)
                 if _year == before_proposal_year:
                     if sum_revised is not None:
-                        table.set(f'{_year} תקציב מאושר', sum_revised, _year*100 + 2, **options)
+                        table.set(f'{_year} מאושר', sum_revised/1000000, _year*100 + 2, **options)
                     if sum_executed is not None:
-                        table.set(f'{_year} תקציב מבוצע', sum_executed, _year*100 + 3, **options)
+                        table.set(f'{_year} מבוצע', sum_executed/1000000, _year*100 + 3, **options)
             
-            max_year_allocated = table.get(f'{max_year} תקציב מקורי')
-            before_proposal_year_allocated = table.get(f'{before_proposal_year} תקציב מקורי')
-            before_proposal_year_revised = table.get(f'{before_proposal_year} תקציב מאושר')
+            max_year_allocated = table.get(f'{max_year}')
+            before_proposal_year_allocated = table.get(f'{before_proposal_year}')
+            before_proposal_year_revised = table.get(f'{before_proposal_year} מאושר')
             if None not in (max_year_allocated, before_proposal_year_allocated) and before_proposal_year_allocated > 0:
                 change = (max_year_allocated - before_proposal_year_allocated) / before_proposal_year_allocated
                 change = round(change, 2)
@@ -296,16 +396,20 @@ def color_scheme_red_green(value):
     if not value:
         return 'FFFFFF'
     value = float(value)
-    if value < 0:
-        value = min(-value, 1.0)
-        value = 0xFF - int(value * (0xFF - 0x88)) 
-        # print('FF{:02x}88'.format(value))
-        return f'FF{value:02X}{value:02X}'
-    if value > 0:
-        value = min(value, 1.0)
-        value = 0xFF - int(value * (0xFF - 0x88))
-        # print('88FF{:02x}'.format(value))
-        return f'{value:02X}FF{value:02X}'.format(value)
+    # if value < 0:
+    #     value = min(-value, 1.0)
+    #     value = 0xFF - int(value * (0xFF - 0x88)) 
+    #     # print('FF{:02x}88'.format(value))
+    #     return f'FF{value:02X}{value:02X}'
+    # if value > 0:
+    #     value = min(value, 1.0)
+    #     value = 0xFF - int(value * (0xFF - 0x88))
+    #     # print('88FF{:02x}'.format(value))
+    #     return f'{value:02X}FF{value:02X}'.format(value)
+    if value > .05:
+        return 'FF0000'
+    if value < -.05:
+        return '00FF00'
     return 'FFFFFF'
 
 
