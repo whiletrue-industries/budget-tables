@@ -1,3 +1,4 @@
+import json
 import requests
 import zipfile
 import io
@@ -58,9 +59,21 @@ The details of the change itself are:
 - TITLE: {title}
 - {change_list_prompt}
 
-Please provide a concise, one sentence explanation of the above change, in Hebrew.
-Don't focus on what the change is, but on why it was made. Be as exact and specific as possible, while still being concise and clear and including all relevant details.
-Do not include any other information, embellishments or explanations, but only the explanation of the change itself.
+Please provide:
+1. A concise, one sentence explanation of the above change, in Hebrew.
+   Don't focus on what the change is, but on why it was made. Be as exact and specific as possible, while still being concise and clear and including all relevant details.
+2. A description of the budget item itself, as found verbatim in the explanatory notes (usually comes after the words "תיאור התוכנית:").
+   Don't paraphrase or summarize it, but provide it as is, and only use the text in the explanatory notes (don't include the words "תיאור התוכנית:")
+   If such a description is not available, say "UNAVAILABLE".
+
+Provide your answer in JSON format. The JSON object should look like this:
+{{
+    "explanation": "The explanation of the change",
+    "description": "The description of the budget item itself"
+}}
+
+Do not include any other information, embellishments or explanations, but only the JSON object itself.
+
 """
             
         completion = client.chat.completions.create(
@@ -73,13 +86,24 @@ Do not include any other information, embellishments or explanations, but only t
                     ],
                 }
             ],
+            response_format=dict(type='json_object'),
         )
 
         content = completion.choices[0].message.content
-        row['explanation'] = content
-        print('EXPLANATION:', content)
+        content = json.loads(content)
+        row['explanation'] = content['explanation']
+        row['item_description'] = content['description']
+        print('EXPLANATION:', content['explanation'])
+        if row['item_description'] == 'UNAVAILABLE':
+            row['item_description'] = ''
+        else:
+            if content['description'] not in PROMPT:
+                print('ROUGE DESCRIPTION:', content['description'])
 
-    return func
+    return DF.Flow(
+        DF.add_field('item_description', type='string'),
+        func,
+    )
 
 
 def get_outstanding_requests():
@@ -230,7 +254,7 @@ def get_explanations(requests_nos):
             row['explanation'] = row['explanation'].strip()
         for committee_id in row['committee_id']:
             key = (committee_id, row['code'])
-            explanations[key] = row['explanation']
+            explanations[key] = [row['explanation'], row['item_description']]
     return explanations
     
 
@@ -532,6 +556,10 @@ def construct_table():
             'key': lambda row: row['budget_title']
         },
         {
+            'title': 'הסבר לתכנית',
+            'key': lambda row: explanations.get((row['committee_id'], row['budget_code']), ['', ''])[1],
+        },
+        {
             'title': 'בקשת השינוי הוצאה נטו במלש"ח',
             'key': lambda row: row['net_expense_diff'] / 1000000,
             'number_format': '#,##0.0',
@@ -546,7 +574,7 @@ def construct_table():
         },
         {
             'title': 'מטרת השינוי - מדברי ההסבר',
-            'key': lambda row: explanations.get((row['committee_id'], row['budget_code']), ''),
+            'key': lambda row: explanations.get((row['committee_id'], row['budget_code']), ['', ''])[0],
         },
         {
             'title': f'מקורי {YEAR}',
