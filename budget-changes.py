@@ -207,7 +207,7 @@ def construct_table():
         {
             'title': 'הסבר לתכנית',
             'key': lambda row: row['budget_item_description'],
-            'options': BLUE_BG
+            'options': dict(BLUE_BG, align='general')
         },
         {
             'title': 'בקשת השינוי הוצאה נטו במלש"ח',
