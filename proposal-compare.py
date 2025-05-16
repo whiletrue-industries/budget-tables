@@ -7,6 +7,22 @@ MIN_YEAR = 2021
 
 CHECKPOINT_DIR = '.checkpoints/proposal-compare'
 
+BASE = dict(font_size=10, font_family='IBM Plex Sans Hebrew')
+COLOR_SCHEMES = [
+    [
+        dict(BASE, color='FFFFFF', background_color='1D5130'),
+        dict(BASE, color='FFFFFF', background_color='35AC61'),
+        dict(BASE, color='222446', background_color='CBF99F'),
+        dict(BASE, color='222446', background_color=['E4FFCB', 'FBFFF3']),
+    ],
+    [
+        dict(BASE, color='FFFFFF', background_color='222446'),
+        dict(BASE, color='FFFFFF', background_color='282CC7'),
+        dict(BASE, color='222446', background_color='92B8FF'),
+        dict(BASE, color='222446', background_color=['D3E2FF','FBFFF3'])
+    ],
+]
+color_scheme = 0
 
 def nice_code(code):
     return code[2:]
@@ -79,8 +95,11 @@ def get_proposal_data():
 def process_data():
     raw_map, connected = get_proposal_data()
     max_year = max(r['year'] for r in connected)
-    proposal_year = list(set(r['year'] for r in connected if r['is_proposal']))
-    proposal_year = proposal_year[0] if len(proposal_year) == 1 else None
+    all_top_level_codes = set(r['code'][:2] for r in connected)
+    color_scheme_indexes = dict((code, i % 2) for i, code in enumerate(all_top_level_codes))
+    # proposal_year = list(set(r['year'] for r in connected if r['is_proposal']))
+    proposal_year = max(r['year'] for r in connected)
+    # proposal_year = proposal_year[0] if len(proposal_year) == 1 else None
 
     if proposal_year is None:
         raise Exception('Could not find a single proposal year, bailing out')
@@ -106,7 +125,7 @@ def process_data():
             titles_comments_for_code[k] = ', '.join(f'עד שנת {y} נקרא {t}' for y, t in v[:-1])
             print('TFC', k, v)
 
-    table = Table('השוואת הצעת התקציב', 
+    table = Table('מעקב תקציב המדינה', 
                   group_fields=['קוד סעיף', 'קוד תחום', 'קוד תכנית'],
                   cleanup_fields=['קוד סעיף', 'שם סעיף', 'קוד תחום', 'שם תחום', 'קוד תכנית', 'שם תכנית'])
 
@@ -144,32 +163,57 @@ def process_data():
             row_key = (code, year)
             table.new_row(row_key)
 
-            table.set('קוד סעיף', '', 0, background_color=BG_COLOR_NAMES)
-            table.set('שם סעיף', '', 1, background_color=BG_COLOR_NAMES)
-            table.set('קוד תחום', '', 10, background_color=BG_COLOR_NAMES)
-            table.set('שם תחום', '', 11, background_color=BG_COLOR_NAMES)
-            table.set('קוד תכנית', '', 20, background_color=BG_COLOR_NAMES)
-            table.set('שם תכנית', '', 21, background_color=BG_COLOR_NAMES)
-            table.set('קוד תקנה', '', 30, background_color=BG_COLOR_NAMES)
-            table.set('שם תקנה', '', 31, background_color=BG_COLOR_NAMES)
+            schema = COLOR_SCHEMES[color_scheme_indexes[code[:2]]]
+            table.set('קוד סעיף', '', 0, **schema[0])
+            table.set('שם סעיף', '', 1, **schema[0])
+            table.set('קוד תחום', '', 10, **schema[1])
+            table.set('שם תחום', '', 11, **schema[1])
+            table.set('קוד תכנית', '', 20, **schema[2])
+            table.set('שם תכנית', '', 21, **schema[2])
+            table.set('קוד תקנה', '', 30, **schema[3])
+            table.set('שם תקנה', '', 31, **schema[3])
 
             # print('CCCC', code_titles)
+            values_schema = None
             if len(code_titles) > 0:
                 _code, _title, _comment = code_titles.pop(0)
-                table.set('קוד סעיף', f'="{_code}"', 0, background_color=BG_COLOR_NAMES)
-                table.set('שם סעיף', _title, 1, background_color=BG_COLOR_NAMES, comment=_comment)
-            if len(code_titles) > 0:
-                _code, _title, _comment = code_titles.pop(0)
-                table.set('קוד תחום', f'="{_code}"', 10, background_color=BG_COLOR_NAMES)
-                table.set('שם תחום', _title, 11, background_color=BG_COLOR_NAMES, comment=_comment)
-            if len(code_titles) > 0:
-                _code, _title, _comment = code_titles.pop(0)
-                table.set('קוד תכנית', f'="{_code}"', 20, bold=True, background_color=BG_COLOR_NAMES)
-                table.set('שם תכנית', _title, 21, bold=True, background_color=BG_COLOR_NAMES, comment=_comment)
-            if len(code_titles) > 0:
-                _code, _title, _comment = code_titles.pop(0)
-                table.set('קוד תקנה', f'="{_code}"', 30, background_color=BG_COLOR_NAMES)
-                table.set('שם תקנה', _title, 31, background_color=BG_COLOR_NAMES, comment=_comment)
+                table.set('קוד סעיף', f'="{_code}"', 0, **schema[0])
+                table.set('שם סעיף', _title, 1, comment=_comment, **schema[0])
+                values_schema = schema[0]
+                if len(code_titles) > 0:
+                    _code, _title, _comment = code_titles.pop(0)
+                    table.set('קוד תחום', f'="{_code}"', 10, **schema[1])
+                    table.set('שם תחום', _title, 11, comment=_comment,  **schema[1])
+                    values_schema = schema[1]
+
+                    if len(code_titles) > 0:
+                        _code, _title, _comment = code_titles.pop(0)
+                        table.set('קוד תכנית', f'="{_code}"', 20, bold=True, **schema[2])
+                        table.set('שם תכנית', _title, 21, bold=True, comment=_comment, **schema[2])
+                        values_schema = schema[2]
+
+                        if len(code_titles) > 0:
+                            _code, _title, _comment = code_titles.pop(0)
+                            table.set('קוד תקנה', f'="{_code}"', 30, comment=_comment, **schema[3])
+                            table.set('שם תקנה', _title, 31, comment=_comment, **schema[3])
+                            values_schema = schema[3]
+                        else:
+                            table.set('קוד תקנה', '', 30, **schema[2])
+                            table.set('שם תקנה', '', 31, **schema[2])
+                    else:
+                        table.set('קוד תכנית', '', 20, **schema[1])
+                        table.set('שם תכנית', '', 21, **schema[1])
+                        table.set('קוד תקנה', '', 30, **schema[1])
+                        table.set('שם תקנה', '', 31, **schema[1])
+                else:
+                    table.set('קוד תחום', '', 10, **schema[0])
+                    table.set('שם תחום', '', 11, **schema[0])
+                    table.set('קוד תכנית', '', 20, **schema[0])
+                    table.set('שם תכנית', '', 21, **schema[0])
+                    table.set('קוד תקנה', '', 30, **schema[0])
+                    table.set('שם תקנה', '', 31, **schema[0])
+
+
             for _year, _codes in keys:
                 sum_allocated = None
                 sum_revised = None
@@ -198,7 +242,8 @@ def process_data():
                     options = dict(
                         bold=_year == max_year,
                         parity=True,
-                        number_format='#,##0.0'
+                        number_format='#,##0.0',
+                        **values_schema
                     )
                 codes = ', '.join(codes)
                 titles = ', '.join(titles)
@@ -232,7 +277,7 @@ def process_data():
                 table.set('שינוי מול מקורי 2024', change, (max_year+1)*100 + 1,
                     bold=False,
                     parity=1,
-                    background_color=color_scheme_red_green,
+                    background_color=color_scheme_red_green(),
                     number_format='0%'
                 )
             if None not in (max_year_allocated, before_proposal_year_revised) and before_proposal_year_revised > 0:
@@ -241,7 +286,7 @@ def process_data():
                 table.set('שינוי מול מאושר 2024', change, (max_year+1)*100 + 2,
                     bold=False,
                     parity=1,
-                    background_color=color_scheme_red_green,
+                    background_color=color_scheme_red_green(),
                     number_format='0%'
                 )
     
