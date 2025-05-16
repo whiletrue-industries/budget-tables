@@ -1,0 +1,26 @@
+name: Deploy CI
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 0 * * *' # Every day at midnight
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.12'
+      - name: pip requirements
+        run: pip install -r requirements.txt
+      - name: Deploy
+        env:
+          CREDENTIALS_JSON: ${{ secrets.CREDENTIALS_JSON }}
+        run: |
+          echo '${CREDENTIALS_JSON}' > credentials.json
+          ./calc_all.sh
+

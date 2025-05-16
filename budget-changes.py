@@ -1,110 +1,14 @@
-import json
 import requests
 import zipfile
 import io
 import re
 import dataflows as DF
-from table import Table, BG_COLOR_NAMES, color_scheme_red_green
-import copy
-from openai import OpenAI
+from table import Table, color_scheme_red_green
 
 YEAR = 2024
 WEIRD_ZIP_FILE = f'https://next.obudget.org/datapackages/budget/national/changes/finance-committee.zip'
 DIGITS_RE = re.compile(r'([-\d]+)')
 CHARS = 'אבגדהוזחטיךכלםמןנסעףפץצקרשת'
-API_KEY = open('OPENAI_APIKEY').read().strip()
-
-client = OpenAI(api_key=API_KEY)
-
-def explain_single_item():
-    def func(row):
-        PROMPT = """
-You are a data analyst. You have been given details of a budget change request. 
-The budget change request contains many changes - your job is to provide a concise explanation of a single change.
-Your sources are: The details of the budget change request, the explanatory notes attached to the request and the details of the single change itself.
-
-The details of the budget change request are:
-"""
-        summary_prompt = []
-        summary = row['summary']
-        summary_prompt.append(f'Request Title: {summary["title"]}')
-        summary_prompt.append(f'Change Kind: {summary["kind"]}')
-        if summary.get('from'):
-            from_items = summary['from']
-            from_items = '\n- '.join('{} ({})'.format(x[2], x[0][2:]) for x in from_items)
-            summary_prompt.append(f'From:\n- {from_items}')
-        if summary.get('to'):
-            to_items = summary['to']
-            to_items = '\n- '.join('{} ({})'.format(x[2], x[0][2:]) for x in to_items)
-            summary_prompt.append(f'To:\n- {to_items}')
-        PROMPT += '\n'.join(summary_prompt)
-        if row.get('explanation'):
-            PROMPT += f"""
-
-The explanatory notes that were provided with the request are:
-{row['explanation']}
-"""
-        if row.get('change_list'):
-            change_list = row['change_list'][0]
-            change_list_prompt = []
-            for k, v in change_list.items():
-                if 'diff' in k and v != 0:
-                    k = k.replace('_', ' ').capitalize() + '.: '
-                    change_list_prompt.append(f'{k}{v}')
-            change_list_prompt = '\n- '.join(change_list_prompt)
-            code, title = change_list['budget_code_title'].split(':', 1)
-            PROMPT += f"""
-The details of the change itself are:
-- CODE: {code[2:]}
-- TITLE: {title}
-- {change_list_prompt}
-
-Please provide:
-1. A concise, one sentence explanation of the above change, in Hebrew.
-   Don't focus on what the change is, but on why it was made. Be as exact and specific as possible, while still being concise and clear and including all relevant details.
-2. A description of the budget item itself, as found verbatim in the explanatory notes (usually comes after the words "תיאור התוכנית:").
-   Don't paraphrase or summarize it, but provide it as is, and only use the text in the explanatory notes (don't include the words "תיאור התוכנית:")
-   If such a description is not available, say "UNAVAILABLE".
-
-Provide your answer in JSON format. The JSON object should look like this:
-{{
-    "explanation": "The explanation of the change",
-    "description": "The description of the budget item itself"
-}}
-
-Do not include any other information, embellishments or explanations, but only the JSON object itself.
-
-"""
-            
-        completion = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        { "type": "text", "text": PROMPT },
-                    ],
-                }
-            ],
-            response_format=dict(type='json_object'),
-        )
-
-        content = completion.choices[0].message.content
-        content = json.loads(content)
-        row['explanation'] = content['explanation']
-        row['item_description'] = content['description']
-        print('EXPLANATION:', content['explanation'])
-        if row['item_description'] == 'UNAVAILABLE':
-            row['item_description'] = ''
-        else:
-            if content['description'] not in PROMPT:
-                print('ROUGE DESCRIPTION:', content['description'])
-
-    return DF.Flow(
-        DF.add_field('item_description', type='string'),
-        func,
-    )
-
 
 def get_outstanding_requests():
     requests_ids = []
@@ -206,56 +110,12 @@ def get_changes(requests_nos):
         DF.checkpoint('changes-raw', CHECKPOINT_DIR),
         DF.filter_rows(lambda row: row['year'] == YEAR),
         DF.filter_rows(lambda row: row['budget_code'] < '0089'),
-        # DF.filter_rows(lambda row: row['committee_id'] in requests_nos),
-        DF.sort_rows('transaction_id'),
+        DF.filter_rows(lambda row: bool(first_item(row['committee_id']))),
+        DF.add_field('key', type='string', default=lambda row: f"{first_item(row['committee_id']):05d}-{row['budget_code']}"),
+        DF.sort_rows('{key}'),
         # DF.printer()
     ).results()[0][0]
     return rows
-    
-# def get_explanations(requests_nos):
-
-#     def unwind_codes():
-#         def func(rows):
-#             for row in rows:
-#                 if row['budget_code_title']:
-#                     for item in row['budget_code_title']:
-#                         code, title = item.split(':', 1)
-#                         out = copy.copy(row)
-#                         out.update(dict(
-#                             code=code,
-#                             title=title,
-#                             change_list=[x for x in row['change_list'] if x['budget_code_title'] == item],
-#                         ))
-#                         yield out
-#         return DF.Flow(
-#             DF.add_field('code', type='string'),
-#             DF.add_field('title', type='string'),
-#             func,
-#             DF.delete_fields(['budget_code_title']),
-#         )
-
-#     rows = DF.Flow(
-#         DF.load(CHANGES_EXPLANATIONS_SOURCE_DATAPACKAGE, resources=['national-budget-changes']),
-#         DF.checkpoint('changes-explanations-raw', CHECKPOINT_DIR),
-#         DF.filter_rows(lambda row: row['year'] == YEAR),
-#         # DF.filter_rows(lambda row: any(i in requests_nos for i in row['committee_id'])),    
-#         DF.select_fields(['summary', 'budget_code_title', 'committee_id', 'explanation', 'change_list']),
-#         unwind_codes(),
-#         explain_single_item(),
-#         DF.checkpoint('changes-explanations', CHECKPOINT_DIR),
-#         DF.printer()
-#     ).results()[0][0]
-
-#     explanations = dict()
-#     for row in rows:
-#         if row['explanation']:
-#             row['explanation'] = row['explanation'].replace('\n', ' ')
-#             row['explanation'] = row['explanation'].replace('  ', ' ')
-#             row['explanation'] = row['explanation'].strip()
-#         for committee_id in row['committee_id']:
-#             key = (committee_id, row['code'])
-#             explanations[key] = [row['explanation'], row['item_description']]
-#     return explanations
     
 def first_item(items):
     if isinstance(items, list):
