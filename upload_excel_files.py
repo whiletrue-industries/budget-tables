@@ -1,3 +1,5 @@
+import os
+import json
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -9,6 +11,14 @@ def replace_tab(spreadsheet_id, tab_name, filename):
     SOURCE_XLSX    = filename
     TARGET_SPREAD  = spreadsheet_id
     TARGET_TAB     = tab_name
+
+    try:
+        creds = json.loads(os.environ['CREDENTIALS_JSON'])
+    except:
+        print('BAD CREDENTAIALS', os.environ.get('CREDENTIALS_JSON')[:20], '...', os.environ.get('CREDENTIALS_JSON')[-20:])
+        raise
+    with open(SERVICE_FILE, 'w') as f:
+        json.dump(creds, f)
 
     creds   = Credentials.from_service_account_file(SERVICE_FILE, scopes=SCOPES)
     drive   = build("drive",   "v3", credentials=creds)
