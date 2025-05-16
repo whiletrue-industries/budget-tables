@@ -21,6 +21,6 @@ jobs:
         env:
           CREDENTIALS_JSON: ${{ secrets.CREDENTIALS_JSON }}
         run: |
-          echo '${CREDENTIALS_JSON}' > credentials.json
+          echo '${CREDENTIALS_JSON}' > budget-tables-61600dd135e5.json
           ./calc_all.sh
 
