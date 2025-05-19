@@ -33,7 +33,8 @@ class Table():
                 font_family='David Libre',
                 font_size=12,
                 color='FFFFFF',
-                background_color='222446'
+                background_color='222446',
+                border_header=True,
             ))
             self.headers[key] = dict(   
                 value=key,
@@ -83,6 +84,9 @@ class Table():
             if rec.get('border_bottom'):
                 # add border below
                 cell.border = openpyxl.styles.Border(bottom=openpyxl.styles.Side(style='thin'))
+            elif rec.get('border_header'):
+                # add border to the side
+                cell.border = openpyxl.styles.Border(left=openpyxl.styles.Side(style='double', color='ffffff'))
             if rec.get('background_color'):
                 if callable(rec['background_color']):
                     color = rec['background_color'](cell.value)

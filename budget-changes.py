@@ -269,7 +269,6 @@ def construct_table():
             continue
         if rowkey:
             if rowkey != _rowkey:
-                print(f'New key: {_rowkey}, old key: {rowkey}')
                 color_index += 1
         rowkey = _rowkey
         t.new_row(rowkey)
