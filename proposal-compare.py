@@ -95,7 +95,7 @@ def get_proposal_data():
 def process_data():
     raw_map, connected = get_proposal_data()
     max_year = max(r['year'] for r in connected)
-    all_top_level_codes = set(r['code'][:2] for r in connected)
+    all_top_level_codes = sorted(set(r['code'][:2] for r in connected))
     color_scheme_indexes = dict((code, i % 2) for i, code in enumerate(all_top_level_codes))
     # proposal_year = list(set(r['year'] for r in connected if r['is_proposal']))
     proposal_year = max(r['year'] for r in connected)
