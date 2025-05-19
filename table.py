@@ -61,7 +61,7 @@ class Table():
                 cell.number_format = rec['number_format']
             else:
                 cell.number_format = "#,##0"
-            cell.alignment = openpyxl.styles.Alignment(horizontal="right", vertical="center", wrap_text=False, readingOrder=2)
+            cell.alignment = openpyxl.styles.Alignment(horizontal=rec.get('align') or "right", vertical="center", wrap_text=True, readingOrder=2)
             font_options = dict()
             if rec.get('bold'):
                 font_options['bold'] = True
@@ -79,9 +79,6 @@ class Table():
                 font_options['size'] = rec.get('font_size')
             if font_options:
                 cell.font = openpyxl.styles.Font(**font_options)
-            if rec.get('align'):
-                align = rec['align']
-                cell.alignment = openpyxl.styles.Alignment(horizontal=align)
             if rec.get('border_bottom'):
                 # add border below
                 cell.border = openpyxl.styles.Border(bottom=openpyxl.styles.Side(style='thin'))
