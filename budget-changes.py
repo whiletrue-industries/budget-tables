@@ -110,9 +110,10 @@ def get_changes(requests_nos):
         DF.checkpoint('changes-raw', CHECKPOINT_DIR),
         DF.filter_rows(lambda row: row['year'] == YEAR),
         DF.filter_rows(lambda row: row['budget_code'] < '0089'),
-        DF.filter_rows(lambda row: bool(first_item(row['committee_id']))),
-        DF.add_field('key', type='string', default=lambda row: f"{first_item(row['committee_id']):05d}-{row['budget_code']}"),
-        DF.sort_rows('{key}'),
+        DF.set_type('committee_id', type='string', transform=first_item),
+        DF.add_field('key', type='string', default=lambda row: f"{row['committee_id']:05d}" if row['committee_id'] else row['transaction_id']),
+        DF.add_field('sort_key', type='string', default=lambda row: f"{row['committee_id']:05d}-{row['budget_code']}" if row['committee_id'] else row['transaction_id']),
+        DF.sort_rows('{sort_key}'),
         # DF.printer()
     ).results()[0][0]
     return rows
@@ -207,7 +208,7 @@ def construct_table():
         {
             'title': 'הסבר לתכנית',
             'key': lambda row: row['budget_item_description'],
-            'options': dict(BLUE_BG, align='general')
+            'options': dict(BLUE_BG, align='right')
         },
         {
             'title': 'בקשת השינוי הוצאה נטו במלש"ח',
@@ -227,7 +228,7 @@ def construct_table():
         {
             'title': 'מטרת השינוי - מדברי ההסבר',
             'key': lambda row: row['change_explanation'],
-            'options': dict(LG_BG, align='general')
+            'options': dict(LG_BG, align='right')
         },
         {
             'title': f'מקורי {YEAR}',
@@ -261,17 +262,17 @@ def construct_table():
     ]
 
     t = Table('שינויים לשנה השוטפת', None, None)
-    committee_id = None
+    rowkey = None
     for row in changes:
-        _committee_id = first_item(row['committee_id'])
-        if not _committee_id:
+        _rowkey = row['key']
+        if not _rowkey:
             continue
-        if committee_id:
-            if committee_id != _committee_id:
+        if rowkey:
+            if rowkey != _rowkey:
+                print(f'New key: {_rowkey}, old key: {rowkey}')
                 color_index += 1
-        committee_id = _committee_id
-        row_key = (committee_id, row['budget_code'])
-        t.new_row(row_key)
+        rowkey = _rowkey
+        t.new_row(rowkey)
         for i, field in enumerate(ROW_FIELDS):
             key = field['key']
             value = key(row)

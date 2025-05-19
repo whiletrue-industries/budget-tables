@@ -61,7 +61,8 @@ class Table():
                 cell.number_format = rec['number_format']
             else:
                 cell.number_format = "#,##0"
-            cell.alignment = openpyxl.styles.Alignment(horizontal=rec.get('align') or "right", vertical="center", wrap_text=True, readingOrder=2)
+            align = rec.get('align', 'right') or 'right'
+            cell.alignment = openpyxl.styles.Alignment(horizontal=align, vertical="center", wrapText=True, readingOrder=2)
             font_options = dict()
             if rec.get('bold'):
                 font_options['bold'] = True
@@ -154,9 +155,17 @@ class Table():
                 
         # Make sure all columns are wide enough
         for column in self.ws.columns:
+            column = list(column)
+            header = None
+            if len(column) > 1:
+                header = column[0].value
+                column = column[1:]
             max_length = max(
                 (len(f"{cell.value:,.1f}") if isinstance(cell.value, decimal.Decimal) else len(str(cell.value)))
-                for cell in column[1:])
+                for cell in column)
+            if header:
+                header = header.split()
+                max_length = max(max_length, max(len(x) for x in header))
             adjusted_width = (max_length + 2) * 1.0
             adjusted_width = min(adjusted_width, 175/7)
             self.ws.column_dimensions[column[0].column_letter].width = adjusted_width
