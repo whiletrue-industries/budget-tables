@@ -156,7 +156,7 @@ class Table():
         for column in self.ws.columns:
             max_length = max(
                 (len(f"{cell.value:,.1f}") if isinstance(cell.value, decimal.Decimal) else len(str(cell.value)))
-                for cell in column)
+                for cell in column[1:])
             adjusted_width = (max_length + 2) * 1.0
             adjusted_width = min(adjusted_width, 175/7)
             self.ws.column_dimensions[column[0].column_letter].width = adjusted_width

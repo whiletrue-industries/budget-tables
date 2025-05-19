@@ -5,7 +5,7 @@ import re
 import dataflows as DF
 from table import Table, color_scheme_red_green
 
-YEAR = 2024
+YEAR = 2025
 WEIRD_ZIP_FILE = f'https://next.obudget.org/datapackages/budget/national/changes/finance-committee.zip'
 DIGITS_RE = re.compile(r'([-\d]+)')
 CHARS = 'אבגדהוזחטיךכלםמןנסעףפץצקרשת'
@@ -196,7 +196,7 @@ def construct_table():
         },
         {
             'title': 'קוד תכנית',
-            'key': lambda row: row['budget_code'][:8],
+            'key': lambda row: row['budget_code'][2:8],
             'options': BLUE_BG
         },
         {
