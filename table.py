@@ -166,7 +166,7 @@ class Table():
             if header:
                 header = header.split()
                 max_length = max(max_length, max(len(x) for x in header))
-            adjusted_width = (max_length + 2) * 1.0
+            adjusted_width = (max_length + 3) * 1.0
             adjusted_width = min(adjusted_width, 175/7)
             self.ws.column_dimensions[column[0].column_letter].width = adjusted_width
 
