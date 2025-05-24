@@ -17,7 +17,12 @@ class Table():
         self.cleanup_fields = cleanup_fields
         self.alternating = 0
 
-    def new_row(self, key):
+    def new_row(self, key, reuse=False):
+        if reuse:
+            for key_, row_ in self.rows:
+                if key_ == key:
+                    self.row = row_
+                    return            
         self.row = dict()
         self.rows.append((key, self.row))
 

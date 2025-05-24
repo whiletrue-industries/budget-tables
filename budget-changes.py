@@ -11,33 +11,43 @@ DIGITS_RE = re.compile(r'([-\d]+)')
 CHARS = 'אבגדהוזחטיךכלםמןנסעףפץצקרשת'
 
 def get_outstanding_requests():
-    requests_ids = []
-    response = requests.get(WEIRD_ZIP_FILE)
-    response.raise_for_status()
-    with zipfile.ZipFile(io.BytesIO(response.content), metadata_encoding='iso-8859-8') as zf:
-        for filename in zf.namelist():
-            filename = [ord(x) for x in filename]
-            filename = [chr(x) if x < 0x80 else CHARS[x - 0x80] for x in filename]
-            filename = ''.join(filename)
-            # d = detect(filename)
-            # filename = filename.decode('MacCyrillic', errors='ignore')
-            # print(filename)
-            # get all digits from the filename and add to requests_ids:
-            digits = DIGITS_RE.findall(filename)
-            for digit in digits:
-                digit = digit.strip('-')
-                digit = digit.split('-')
-                digit = [int(x) for x in digit]
-                if len(digit) == 2:
-                    digit = list(range(digit[0], digit[1] + 1))
-                for item in digit:
-                    if item not in requests_ids:
-                        requests_ids.append(item)
-            # requests_ids.extend(digits)
+    # requests_ids = []
+    # response = requests.get(WEIRD_ZIP_FILE)
+    # response.raise_for_status()
+    # with zipfile.ZipFile(io.BytesIO(response.content), metadata_encoding='iso-8859-8') as zf:
+    #     for filename in zf.namelist():
+    #         filename = [ord(x) for x in filename]
+    #         filename = [chr(x) if x < 0x80 else CHARS[x - 0x80] for x in filename]
+    #         filename = ''.join(filename)
+    #         # d = detect(filename)
+    #         # filename = filename.decode('MacCyrillic', errors='ignore')
+    #         # print(filename)
+    #         # get all digits from the filename and add to requests_ids:
+    #         digits = DIGITS_RE.findall(filename)
+    #         for digit in digits:
+    #             digit = digit.strip('-')
+    #             digit = digit.split('-')
+    #             digit = [int(x) for x in digit]
+    #             if len(digit) == 2:
+    #                 digit = list(range(digit[0], digit[1] + 1))
+    #             for item in digit:
+    #                 if item not in requests_ids:
+    #                     requests_ids.append(item)
+    #         # requests_ids.extend(digits)
 
-    print('Requests IDs:', requests_ids)
+    # print('Requests IDs:', requests_ids)
+    # return requests_ids
+    URL = 'https://docs.google.com/spreadsheets/d/1cwI47w0XSdbEqvmX9Uqdj8jGWMI59vo7DlRCVWUuj00/edit?pli=1&gid=0#gid=0'
+    ids = DF.Flow(
+        DF.load(URL),
+        DF.select_fields(['מספר פנייה']),
+    ).results()[0][0]
+    requests_ids = [
+        int(row['מספר פנייה'])
+        for row in ids
+        if row['מספר פנייה']
+    ]
     return requests_ids
-
 
 CHANGES_SOURCE_DATAPACKAGE = 'https://next.obudget.org/datapackages/budget/national/changes/raw-budget-changes-enriched/datapackage.json'
 BUDGET_SOURCE_DATAPACKAGE = 'https://next.obudget.org/datapackages/budget/national/processed/with-extras/datapackage.json'
@@ -104,15 +114,33 @@ def get_parent_names_per_program():
     )
     return mapping
 
+def row_sort_key(row, requests_nos):
+    if row['committee_id']:
+        if row['committee_id'] in requests_nos:
+            return f"000-{row['committee_id']:05d}-{row['budget_code']}"
+        else:
+            return f"500-{row['committee_id']:05d}-{row['budget_code']}"
+    else:
+        return f'999-{row['transaction_id']}'
+    
+def row_key(row, requests_nos):
+    if row['committee_id']:
+        if row['committee_id'] in requests_nos:
+            return f"000-{row['committee_id']:05d}"
+        else:
+            return f"500-{row['committee_id']:05d}"
+    else:
+        return f'999-{row['transaction_id']}'
+
 def get_changes(requests_nos):
     rows = DF.Flow(
         DF.load(CHANGES_SOURCE_DATAPACKAGE, resources=['national-budget-changes']),
         DF.checkpoint('changes-raw', CHECKPOINT_DIR),
         DF.filter_rows(lambda row: row['year'] == YEAR),
         DF.filter_rows(lambda row: row['budget_code'] < '0089'),
-        DF.set_type('committee_id', type='string', transform=first_item),
-        DF.add_field('key', type='string', default=lambda row: f"{row['committee_id']:05d}" if row['committee_id'] else row['transaction_id']),
-        DF.add_field('sort_key', type='string', default=lambda row: f"{row['committee_id']:05d}-{row['budget_code']}" if row['committee_id'] else row['transaction_id']),
+        DF.set_type('committee_id', type='integer', transform=first_item),
+        DF.add_field('key', type='string', default=lambda row: row_key(row, requests_nos)),
+        DF.add_field('sort_key', type='string', default=lambda row: row_sort_key(row, requests_nos)),
         DF.sort_rows('{sort_key}'),
         # DF.printer()
     ).results()[0][0]
@@ -128,8 +156,7 @@ def first_item(items):
 
 def construct_table():
     # process_data()
-    # outstanding_requests = get_outstanding_requests()
-    outstanding_requests = None
+    outstanding_requests = get_outstanding_requests()
     change_per_year_no_surplus = get_change_per_year_no_surplus()
     original_budget_per_program = get_original_budget_per_program()
     parent_names_per_program = get_parent_names_per_program()
@@ -271,7 +298,9 @@ def construct_table():
             if rowkey != _rowkey:
                 color_index += 1
         rowkey = _rowkey
-        t.new_row(rowkey)
+        if _rowkey.startswith('000-'):
+            t.new_row('400', reuse=True)
+        t.new_row(rowkey)            
         for i, field in enumerate(ROW_FIELDS):
             key = field['key']
             value = key(row)

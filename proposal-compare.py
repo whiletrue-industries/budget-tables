@@ -98,12 +98,11 @@ def process_data():
     all_top_level_codes = sorted(set(r['code'][:2] for r in connected))
     color_scheme_indexes = dict((code, i % 2) for i, code in enumerate(all_top_level_codes))
     # proposal_year = list(set(r['year'] for r in connected if r['is_proposal']))
-    proposal_year = max(r['year'] for r in connected)
+    # proposal_year = max(r['year'] for r in connected)
     # proposal_year = proposal_year[0] if len(proposal_year) == 1 else None
-
-    if proposal_year is None:
-        raise Exception('Could not find a single proposal year, bailing out')
-    before_proposal_year = proposal_year - 1
+    # if proposal_year is None:
+    #     raise Exception('Could not find a single proposal year, bailing out')
+    before_max_year = max_year - 1
 
     used_keys = set()
     # table_rows = list()
@@ -123,7 +122,38 @@ def process_data():
     for k, v in titles_for_code_aux.items():
         if len(v) > 1:
             titles_comments_for_code[k] = ', '.join(f'עד שנת {y} נקרא {t}' for y, t in v[:-1])
-            print('TFC', k, v)
+            # print('TFC', k, v)
+
+    histories8 = dict()
+    for item in connected:
+        year = item['year']
+        code = item['code']
+        if len(code) < 8:
+            continue
+        histories8.setdefault(code, []).append((year, item))
+    # history_replacement = dict()
+    for code, items in histories8.items():
+        if len(items) < 2:
+            continue
+        items = sorted(items, key=lambda x: x[0], reverse=True)
+        if code=='02030208':
+            print(code, 'YYYY',  [x[0] for x in items])
+        year = items[0][0]
+        items = [x[1] for x in items]
+        history = items[0]['history']
+        for item in items[1:]:
+            history[str(item['year'])] = dict(
+                net_allocated=item.get('net_allocated'),
+                net_revised=item.get('net_revised'),
+                net_executed=item.get('net_executed'),
+                code_titles=[f"00{item['code']}:{item['title']}"],
+            )
+            history.update(item['history'])
+        if code=='02030208':
+            for year, item in history.items():
+                print(f'HISTORY ITEM {year} {item}')
+        # history_replacement[(year, code)] = items[0]
+            # print(f'REPLACE {year} {code} with {items[0][0]} {items[0][1]["title"]}')
 
     table = Table('מעקב תקציב המדינה', 
                   group_fields=['קוד סעיף', 'קוד תחום', 'קוד תכנית'],
@@ -152,14 +182,20 @@ def process_data():
                 for _year, _rec in history:
                     if _year < MIN_YEAR:
                         break
-                    if _rec.get('net_allocated') or _rec.get('net_revised') or _rec.get('net_executed'):
-                        _year_codes = [nice_code(x.split(':')[0]) for x in _rec['code_titles']]
-                        keys.append((_year, _year_codes))
+                    # if _rec.get('net_allocated') or _rec.get('net_revised') or _rec.get('net_executed'):
+                    _year_codes = [nice_code(x.split(':')[0]) for x in _rec['code_titles']]
+                    keys.append((_year, _year_codes))
             # print('KEYS', keys)
 
             hierarchy = item['hierarchy']
             code_titles = [(nice_code(h[0]), titles_for_code[nice_code(h[0])][1], None) for h in hierarchy[1:]] + [(code, title, titles_comments_for_code.get(code))]
 
+            # if len(code) < 8:
+            #     row_key = (code, year)
+            #     table.new_row(row_key)
+            # else:
+            #     row_key = (code, 2000)
+            #     table.new_row(row_key, reuse=True)
             row_key = (code, year)
             table.new_row(row_key)
 
@@ -262,28 +298,41 @@ def process_data():
                     else:
                         options_ = options
                     table.set(f'{_year}', sum_allocated/1000000, _year*100 + 1, **options_)
-                if _year == before_proposal_year:
+                if _year == before_max_year:
                     if sum_revised is not None:
                         table.set(f'{_year} מאושר', sum_revised/1000000, _year*100 + 2, **options)
                     if sum_executed is not None:
                         table.set(f'{_year} מבוצע', sum_executed/1000000, _year*100 + 3, **options)
+                if _year == max_year:
+                    if sum_revised is not None and len(code) < 8:
+                        table.set(f'{_year} על״ש', sum_revised/1000000, _year*100 + 2, **options)
             
             max_year_allocated = table.get(f'{max_year}')
-            before_proposal_year_allocated = table.get(f'{before_proposal_year}')
-            before_proposal_year_revised = table.get(f'{before_proposal_year} מאושר')
-            if None not in (max_year_allocated, before_proposal_year_allocated) and before_proposal_year_allocated > 0:
-                change = (max_year_allocated - before_proposal_year_allocated) / before_proposal_year_allocated
+            max_year_revised = table.get(f'{max_year} על״ש')
+            before_max_year_allocated = table.get(f'{before_max_year}')
+            before_max_year_revised = table.get(f'{before_max_year} מאושר')
+            if None not in (max_year_allocated, before_max_year_allocated) and before_max_year_allocated > 0:
+                change = (max_year_allocated - before_max_year_allocated) / before_max_year_allocated
                 change = round(change, 2)
-                table.set('שינוי מול מקורי 2024', change, (max_year+1)*100 + 1,
+                table.set(f'שינוי מול מקורי {before_max_year}', change, (max_year+1)*100 + 1,
                     bold=False,
                     parity=1,
                     background_color=color_scheme_red_green(),
                     number_format='0%'
                 )
-            if None not in (max_year_allocated, before_proposal_year_revised) and before_proposal_year_revised > 0:
-                change = (max_year_allocated - before_proposal_year_revised) / before_proposal_year_revised
+            if None not in (max_year_allocated, before_max_year_revised) and before_max_year_revised > 0:
+                change = (max_year_allocated - before_max_year_revised) / before_max_year_revised
                 change = round(change, 2)
-                table.set('שינוי מול מאושר 2024', change, (max_year+1)*100 + 2,
+                table.set(f'שינוי מול מאושר {before_max_year}', change, (max_year+1)*100 + 2,
+                    bold=False,
+                    parity=1,
+                    background_color=color_scheme_red_green(),
+                    number_format='0%'
+                )
+            if None not in (max_year_revised, max_year_allocated) and max_year_allocated > 0: 
+                change = (max_year_revised - max_year_allocated) / max_year_allocated
+                change = round(change, 2)
+                table.set(f'שיעור שינוי {max_year} על"ש / {max_year} מקורי', change, (max_year+1)*100 + 3,
                     bold=False,
                     parity=1,
                     background_color=color_scheme_red_green(),
