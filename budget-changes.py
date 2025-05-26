@@ -198,8 +198,8 @@ def construct_table():
 
     ROW_FIELDS = [
         {
-            'title': 'מספר פנייה',
-            'key': lambda row: first_item(row['committee_id']),
+            'title': 'מספר פנייה/בקשה',
+            'key': lambda row: first_item(row['committee_id']) or row['change_id'],
             'options': ORANGE_BG,
         },
         {
@@ -235,6 +235,11 @@ def construct_table():
         {
             'title': 'הסבר לתכנית',
             'key': lambda row: row['budget_item_description'],
+            'options': dict(BLUE_BG, align='right', header_comment='אם דברי ההסבר כללו תיאור של התכנית התקציבית, הוא יופיע כאן')
+        },
+        {
+            'title': 'סוג הבקשה',
+            'key': lambda row: first_item(row['change_type_name']),
             'options': dict(BLUE_BG, align='right')
         },
         {
@@ -290,6 +295,7 @@ def construct_table():
 
     t = Table('שינויים לשנה השוטפת', None, None)
     rowkey = None
+    total_so_far = 0
     for row in changes:
         _rowkey = row['key']
         if not _rowkey:
@@ -298,8 +304,6 @@ def construct_table():
             if rowkey != _rowkey:
                 color_index += 1
         rowkey = _rowkey
-        if _rowkey.startswith('000-'):
-            t.new_row('400', reuse=True)
         t.new_row(rowkey)            
         for i, field in enumerate(ROW_FIELDS):
             key = field['key']
@@ -313,6 +317,14 @@ def construct_table():
                 options['background_color'] = options['background_color'](value)
             # print(f'ROW KEY: {row_key}, FIELD: {field["title"]}, VALUE: {value}')
             t.set(field['title'], value, i, **options)
+
+        if _rowkey.startswith('000-'):
+            total_so_far += row['net_expense_diff']
+            t.new_row('400', reuse=True)
+            t.set('סוג הבקשה', 'סה״כ:', None,  bold=True, align='right', background_color='FFFFFF')
+            t.set('בקשת השינוי הוצאה נטו במלש"ח', total_so_far / 1000000, None,  bold=True, align='center', number_format='#,##0.0', background_color='FFFFFF')
+
+
     t.save('budget-changes.xlsx')
 
 if __name__=='__main__':

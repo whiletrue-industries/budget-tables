@@ -136,8 +136,6 @@ def process_data():
         if len(items) < 2:
             continue
         items = sorted(items, key=lambda x: x[0], reverse=True)
-        if code=='02030208':
-            print(code, 'YYYY',  [x[0] for x in items])
         year = items[0][0]
         items = [x[1] for x in items]
         history = items[0]['history']
@@ -149,9 +147,6 @@ def process_data():
                 code_titles=[f"00{item['code']}:{item['title']}"],
             )
             history.update(item['history'])
-        if code=='02030208':
-            for year, item in history.items():
-                print(f'HISTORY ITEM {year} {item}')
         # history_replacement[(year, code)] = items[0]
             # print(f'REPLACE {year} {code} with {items[0][0]} {items[0][1]["title"]}')
 
@@ -297,24 +292,24 @@ def process_data():
                         options_ = dict(options, comment=comment)
                     else:
                         options_ = options
-                    table.set(f'{_year}', sum_allocated/1000000, _year*100 + 1, **options_)
+                    table.set(f'{_year} מקורי', sum_allocated/1000000, _year*100 + 1, **options_)
                 if _year == before_max_year:
                     if sum_revised is not None:
-                        table.set(f'{_year} מאושר', sum_revised/1000000, _year*100 + 2, **options)
+                        table.set(f'{_year} על״ש', sum_revised/1000000, _year*100 + 2, **options)
                     if sum_executed is not None:
-                        table.set(f'{_year} מבוצע', sum_executed/1000000, _year*100 + 3, **options)
+                        table.set(f'{_year} ביצוע', sum_executed/1000000, _year*100 + 3, **options)
                 if _year == max_year:
                     if sum_revised is not None and len(code) < 8:
                         table.set(f'{_year} על״ש', sum_revised/1000000, _year*100 + 2, **options)
             
-            max_year_allocated = table.get(f'{max_year}')
+            max_year_allocated = table.get(f'{max_year} מקורי')
             max_year_revised = table.get(f'{max_year} על״ש')
-            before_max_year_allocated = table.get(f'{before_max_year}')
-            before_max_year_revised = table.get(f'{before_max_year} מאושר')
+            before_max_year_allocated = table.get(f'{before_max_year} מקורי')
+            before_max_year_revised = table.get(f'{before_max_year} על״ש')
             if None not in (max_year_allocated, before_max_year_allocated) and before_max_year_allocated > 0:
                 change = (max_year_allocated - before_max_year_allocated) / before_max_year_allocated
                 change = round(change, 2)
-                table.set(f'שינוי מול מקורי {before_max_year}', change, (max_year+1)*100 + 1,
+                table.set(f'שיעור שינוי {max_year}/{before_max_year}', change, (max_year+1)*100 + 1,
                     bold=False,
                     parity=1,
                     background_color=color_scheme_red_green(),
@@ -323,7 +318,7 @@ def process_data():
             if None not in (max_year_allocated, before_max_year_revised) and before_max_year_revised > 0:
                 change = (max_year_allocated - before_max_year_revised) / before_max_year_revised
                 change = round(change, 2)
-                table.set(f'שינוי מול מאושר {before_max_year}', change, (max_year+1)*100 + 2,
+                table.set(f'שיעור שינוי {before_max_year} על״ש/{max_year} מקורי', change, (max_year+1)*100 + 2,
                     bold=False,
                     parity=1,
                     background_color=color_scheme_red_green(),
@@ -332,7 +327,7 @@ def process_data():
             if None not in (max_year_revised, max_year_allocated) and max_year_allocated > 0: 
                 change = (max_year_revised - max_year_allocated) / max_year_allocated
                 change = round(change, 2)
-                table.set(f'שיעור שינוי {max_year} על"ש / {max_year} מקורי', change, (max_year+1)*100 + 3,
+                table.set(f'שיעור שינוי {max_year} מקורי/על״ש', change, (max_year+1)*100 + 3,
                     bold=False,
                     parity=1,
                     background_color=color_scheme_red_green(),

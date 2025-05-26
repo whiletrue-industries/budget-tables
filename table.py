@@ -40,6 +40,7 @@ class Table():
                 color='FFFFFF',
                 background_color='222446',
                 border_header=True,
+                comment=options.get('header_comment'),
             ))
             self.headers[key] = dict(   
                 value=key,
@@ -176,7 +177,7 @@ class Table():
                 header = header.split()
                 max_length = max(max_length, max(len(x) for x in header))
             adjusted_width = (max_length + 3) * 1.0
-            adjusted_width = min(adjusted_width, 175/7)
+            adjusted_width = min(adjusted_width, 20)
             self.ws.column_dimensions[column[0].column_letter].width = adjusted_width
 
         for level in sorted(self.groups.keys()):
