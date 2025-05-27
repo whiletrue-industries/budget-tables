@@ -309,7 +309,7 @@ def process_data():
             if None not in (max_year_allocated, before_max_year_allocated) and before_max_year_allocated > 0:
                 change = (max_year_allocated - before_max_year_allocated) / before_max_year_allocated
                 change = round(change, 2)
-                table.set(f'שיעור שינוי {max_year}/{before_max_year}', change, (max_year+1)*100 + 1,
+                table.set(f'שיעור שינוי {max_year}/{before_max_year} מקורי', change, (max_year+1)*100 + 1,
                     bold=False,
                     parity=1,
                     background_color=color_scheme_red_green(),
