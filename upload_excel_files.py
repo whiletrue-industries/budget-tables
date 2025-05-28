@@ -44,15 +44,7 @@ def replace_tab(spreadsheet_id, tab_name, filename):
     ).execute()["sheets"][0]["properties"]["sheetId"]
     print(f"Source sheet ID: {src_sheet_id}")
 
-    # ── 2. Copy that sheet into the destination spreadsheet ───────────────
-    new_sheet_props = sheets.spreadsheets().sheets().copyTo(
-        spreadsheetId=tmp_id,
-        sheetId=src_sheet_id,
-        body={"destinationSpreadsheetId": TARGET_SPREAD},
-    ).execute()
-    new_sheet_id = new_sheet_props["sheetId"]
-
-    # ── 3. Delete the old tab and rename the new copy ─────────────────────
+    # ── 2. Delete the old tab  ─────────────────────
     # find existing tab’s sheetId by name
     dest_sheets = sheets.spreadsheets().get(
         spreadsheetId=TARGET_SPREAD, fields="sheets.properties"
@@ -64,6 +56,21 @@ def replace_tab(spreadsheet_id, tab_name, filename):
 
     requests = [
         {"deleteSheet": {"sheetId": old_sheet_id}},
+    ]
+    sheets.spreadsheets().batchUpdate(
+        spreadsheetId=TARGET_SPREAD, body={"requests": requests}
+    ).execute()
+
+    # ── 3. Copy that sheet into the destination spreadsheet ───────────────
+    new_sheet_props = sheets.spreadsheets().sheets().copyTo(
+        spreadsheetId=tmp_id,
+        sheetId=src_sheet_id,
+        body={"destinationSpreadsheetId": TARGET_SPREAD},
+    ).execute()
+    new_sheet_id = new_sheet_props["sheetId"]
+
+    # ── 4. rename the new copy ─────────────────────
+    requests = [
         {"updateSheetProperties": {
             "properties": {"sheetId": new_sheet_id, "title": TARGET_TAB},
             "fields": "title"
@@ -73,7 +80,7 @@ def replace_tab(spreadsheet_id, tab_name, filename):
         spreadsheetId=TARGET_SPREAD, body={"requests": requests}
     ).execute()
 
-    # ── 4. House-keeping: kill the temporary spreadsheet ──────────────────
+    # ── 5. House-keeping: kill the temporary spreadsheet ──────────────────
     drive.files().delete(fileId=tmp_id).execute()
 
     print("Tab replaced successfully 🎉")
