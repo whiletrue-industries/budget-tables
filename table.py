@@ -7,7 +7,7 @@ BG_COLOR_HEADER = '95b3d7'
 
 class Table():
 
-    def __init__(self, title, group_fields=None, cleanup_fields=None):
+    def __init__(self, title, group_fields=None, cleanup_fields=None, shrink_columns=[]):
         self.headers = dict()
         self.rows = list()
         self.row = dict()
@@ -16,6 +16,7 @@ class Table():
         self.group_fields = group_fields
         self.cleanup_fields = cleanup_fields
         self.alternating = 0
+        self.shrink_columns = shrink_columns
 
     def new_row(self, key, reuse=False):
         if reuse:
@@ -69,7 +70,8 @@ class Table():
             else:
                 cell.number_format = "#,##0"
             align = rec.get('align', 'right') or 'right'
-            cell.alignment = openpyxl.styles.Alignment(horizontal=align, vertical="center", wrapText=True, readingOrder=2)
+            wrapText = not rec.get('overflow', False)
+            cell.alignment = openpyxl.styles.Alignment(horizontal=align, vertical="center", wrapText=wrapText, readingOrder=2)
             font_options = dict()
             if rec.get('bold'):
                 font_options['bold'] = True
@@ -170,9 +172,12 @@ class Table():
             if len(column) > 1:
                 header = column[0].value
                 column = column[1:]
-            max_length = max(
-                (len(f"{cell.value:,.1f}") if isinstance(cell.value, decimal.Decimal) else len(str(cell.value)))
-                for cell in column)
+            if header not in self.shrink_columns:
+                max_length = max(
+                    (len(f"{cell.value:,.1f}") if isinstance(cell.value, decimal.Decimal) else len(str(cell.value)))
+                    for cell in column)
+            else:
+                max_length = 0
             if header:
                 header = header.split()
                 max_length = max(max_length, max(len(x) for x in header))

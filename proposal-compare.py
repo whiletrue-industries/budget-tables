@@ -152,7 +152,9 @@ def process_data():
 
     table = Table('מעקב תקציב המדינה', 
                   group_fields=['קוד סעיף', 'קוד תחום', 'קוד תכנית'],
-                  cleanup_fields=['קוד סעיף', 'שם סעיף', 'קוד תחום', 'שם תחום', 'קוד תכנית', 'שם תכנית'])
+                  cleanup_fields=['קוד סעיף', 'שם סעיף', 'קוד תחום', 'שם תחום', 'קוד תכנית', 'שם תכנית'],
+                  shrink_columns=['שם סעיף', 'שם תחום', 'שם תכנית'],
+            )
 
     for year in range(max_year, MIN_YEAR-1, -1):
         print(f'PROCESSING YEAR {year}, got so far {len(used_keys)} keys')
@@ -209,18 +211,18 @@ def process_data():
             if len(code_titles) > 0:
                 _code, _title, _comment = code_titles.pop(0)
                 table.set('קוד סעיף', f'="{_code}"', 0, **schema[0])
-                table.set('שם סעיף', _title, 1, comment=_comment, **schema[0])
+                table.set('שם סעיף', _title, 1, comment=_comment, **schema[0], overflow=True)
                 values_schema = schema[0]
                 if len(code_titles) > 0:
                     _code, _title, _comment = code_titles.pop(0)
                     table.set('קוד תחום', f'="{_code}"', 10, **schema[1])
-                    table.set('שם תחום', _title, 11, comment=_comment,  **schema[1])
+                    table.set('שם תחום', _title, 11, comment=_comment,  **schema[1], overflow=True)
                     values_schema = schema[1]
 
                     if len(code_titles) > 0:
                         _code, _title, _comment = code_titles.pop(0)
                         table.set('קוד תכנית', f'="{_code}"', 20, bold=True, **schema[2])
-                        table.set('שם תכנית', _title, 21, bold=True, comment=_comment, **schema[2])
+                        table.set('שם תכנית', _title, 21, bold=True, comment=_comment, **schema[2], overflow=True)
                         values_schema = schema[2]
 
                         if len(code_titles) > 0:
