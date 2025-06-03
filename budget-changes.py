@@ -138,6 +138,7 @@ def get_changes(requests_nos):
         DF.checkpoint('changes-raw', CHECKPOINT_DIR),
         DF.filter_rows(lambda row: row['year'] == YEAR),
         DF.filter_rows(lambda row: row['budget_code'] < '0089'),
+        DF.filter_rows(lambda row: row['pending']),
         DF.set_type('committee_id', type='integer', transform=first_item),
         DF.add_field('key', type='string', default=lambda row: row_key(row, requests_nos)),
         DF.add_field('sort_key', type='string', default=lambda row: row_sort_key(row, requests_nos)),
