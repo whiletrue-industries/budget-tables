@@ -86,6 +86,9 @@ def get_proposal_data():
             'history',
             'hierarchy',
             'is_proposal',
+            'net_allocated',
+            'net_revised',
+            'net_executed',
         ]),
         DF.set_type('code', transform=nice_code),
         DF.checkpoint('connected', CHECKPOINT_DIR),
@@ -122,19 +125,23 @@ def process_data():
     for k, v in titles_for_code_aux.items():
         if len(v) > 1:
             titles_comments_for_code[k] = ', '.join(f'עד שנת {y} נקרא {t}' for y, t in v[:-1])
-            # print('TFC', k, v)
 
     histories8 = dict()
-    for item in connected:
+    allowed_codes = set()
+    for item in connected:        
         year = item['year']
         code = item['code']
+        if year < MIN_YEAR:
+            continue
         if len(code) < 8:
             continue
         histories8.setdefault(code, []).append((year, item))
     # history_replacement = dict()
+    sums = dict()
     for code, items in histories8.items():
-        if len(items) < 2:
-            continue
+        allowed_codes.add(code[:6])
+        allowed_codes.add(code[:4])
+        allowed_codes.add(code[:2])
         items = sorted(items, key=lambda x: x[0], reverse=True)
         year = items[0][0]
         items = [x[1] for x in items]
@@ -146,10 +153,24 @@ def process_data():
                 net_executed=item.get('net_executed'),
                 code_titles=[f"00{item['code']}:{item['title']}"],
             )
-            history.update(item['history'])
+            history.update(item['history'])        
+        for y, i in [(year, items[0]), *[(int(k), v) for k,v in history.items()]]:
+            if y < max_year:
+                for l in [2,4,6]:
+                    key = y, code[:l]
+                    sums.setdefault(key, 0)
+                    sums[key] += float(i.get('net_allocated', 0) or 0)
         # history_replacement[(year, code)] = items[0]
             # print(f'REPLACE {year} {code} with {items[0][0]} {items[0][1]["title"]}')
+    mismatch = dict()
+    for key, value in sums.items():
+        actual = raw_map.get(key)
+        if not actual:
+            continue
+        if actual['net_allocated'] != value:
+            mismatch[key] = float(actual['net_allocated']) - value
 
+    # return
     table = Table('מעקב תקציב המדינה', 
                   group_fields=['קוד סעיף', 'קוד תחום', 'קוד תכנית'],
                   cleanup_fields=['קוד סעיף', 'שם סעיף', 'קוד תחום', 'שם תחום', 'קוד תכנית', 'שם תכנית'],
@@ -163,6 +184,9 @@ def process_data():
                 continue
             code = item['code']
             title = item['title']
+            if len(code) < 8 and code not in allowed_codes and year != max_year:
+                print(f'Skipping {year} {code} {title}, not allowed')
+                continue
             # max_year_, title = titles_for_code[code]
             # if item['year'] != max_year:
             #     print(f'Item {code} is not max year {item["year"]} != {max_year}')
@@ -170,6 +194,7 @@ def process_data():
             # print(f'Processing {year} {code}')
             key = (year, code)
             if key in used_keys:
+                # print(f'Skipping {year} {code} {title}, already used')
                 continue
             keys = [(year, [code])]
             history = item['history']
@@ -186,6 +211,10 @@ def process_data():
 
             hierarchy = item['hierarchy']
             code_titles = [(nice_code(h[0]), titles_for_code[nice_code(h[0])][1], None) for h in hierarchy[1:]] + [(code, title, titles_comments_for_code.get(code))]
+
+            mismatch_comment = dict()
+            if (year, code) in mismatch:
+                mismatch_comment['comment'] = f'חלק או כלל התקנות תחת סעיף זה מופיעות במיקומן המעודכן נכון לשנת {max_year}'
 
             # if len(code) < 8:
             #     row_key = (code, year)
@@ -206,22 +235,21 @@ def process_data():
             table.set('קוד תקנה', '', 30, **schema[3])
             table.set('שם תקנה', '', 31, **schema[3])
 
-            # print('CCCC', code_titles)
             values_schema = None
             if len(code_titles) > 0:
                 _code, _title, _comment = code_titles.pop(0)
-                table.set('קוד סעיף', f'="{_code}"', 0, **schema[0])
+                table.set('קוד סעיף', f'="{_code}"', 0, **schema[0], **(mismatch_comment if len(code_titles) == 0 else {}))
                 table.set('שם סעיף', _title, 1, comment=_comment, **schema[0], overflow=True)
                 values_schema = schema[0]
                 if len(code_titles) > 0:
                     _code, _title, _comment = code_titles.pop(0)
-                    table.set('קוד תחום', f'="{_code}"', 10, **schema[1])
+                    table.set('קוד תחום', f'="{_code}"', 10, **schema[1], **(mismatch_comment if len(code_titles) == 0 else {}))
                     table.set('שם תחום', _title, 11, comment=_comment,  **schema[1], overflow=True)
                     values_schema = schema[1]
 
                     if len(code_titles) > 0:
                         _code, _title, _comment = code_titles.pop(0)
-                        table.set('קוד תכנית', f'="{_code}"', 20, bold=True, **schema[2])
+                        table.set('קוד תכנית', f'="{_code}"', 20, bold=True, **schema[2], **(mismatch_comment if len(code_titles) == 0 else {}))
                         table.set('שם תכנית', _title, 21, bold=True, comment=_comment, **schema[2], overflow=True)
                         values_schema = schema[2]
 
