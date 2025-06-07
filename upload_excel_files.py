@@ -83,6 +83,18 @@ def replace_tab(spreadsheet_id, tab_name, filename):
     # ── 5. House-keeping: kill the temporary spreadsheet ──────────────────
     drive.files().delete(fileId=tmp_id).execute()
 
+    # ── 6. Get direct link to the new sheet (#gid=) ──────────────────
+    new_sheet_url = f"https://docs.google.com/spreadsheets/d/{TARGET_SPREAD}/edit#gid={new_sheet_id}"
+    print(f"New sheet URL: {new_sheet_url}")
+
+    # write value in the target spreadsheet, first sheet cell N1
+    sheets.spreadsheets().values().update(
+        spreadsheetId=TARGET_SPREAD,
+        range=f"הסבר!N1",
+        valueInputOption="USER_ENTERED",
+        body={"values": [[new_sheet_url]]}
+    ).execute()
+
     print("Tab replaced successfully 🎉")
 
 

@@ -347,12 +347,12 @@ def process_data():
                     number_format='0%'
                 )
             if None not in (before_max_year_executed, before_max_year_revised) and before_max_year_revised > 0:
-                change = (before_max_year_executed - before_max_year_revised) / before_max_year_revised
+                change = before_max_year_executed / before_max_year_revised
                 change = round(change, 2)
                 table.set(f'שיעור ביצוע מתוך על"ש {before_max_year}', change, (max_year+1)*100 + 2,
                     bold=False,
                     parity=1,
-                    background_color=color_scheme_red_green(),
+                    background_color='ffffff',
                     number_format='0%'
                 )
             if None not in (max_year_allocated, before_max_year_allocated) and before_max_year_allocated > 0:
