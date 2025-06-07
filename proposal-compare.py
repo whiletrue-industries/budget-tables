@@ -336,10 +336,29 @@ def process_data():
             max_year_revised = table.get(f'{max_year} על״ש')
             before_max_year_allocated = table.get(f'{before_max_year} מקורי')
             before_max_year_revised = table.get(f'{before_max_year} על״ש')
+            before_max_year_executed = table.get(f'{before_max_year} ביצוע')
+            if None not in (before_max_year_revised, before_max_year_allocated) and before_max_year_allocated > 0:
+                change = (before_max_year_revised - before_max_year_allocated) / before_max_year_allocated
+                change = round(change, 2)
+                table.set(f'שיעור שינוי מקורי/על״ש {before_max_year}', change, (max_year+1)*100 + 1,
+                    bold=False,
+                    parity=1,
+                    background_color=color_scheme_red_green(),
+                    number_format='0%'
+                )
+            if None not in (before_max_year_executed, before_max_year_revised) and before_max_year_revised > 0:
+                change = (before_max_year_executed - before_max_year_revised) / before_max_year_revised
+                change = round(change, 2)
+                table.set(f'שיעור ביצוע מתוך על"ש {before_max_year}', change, (max_year+1)*100 + 2,
+                    bold=False,
+                    parity=1,
+                    background_color=color_scheme_red_green(),
+                    number_format='0%'
+                )
             if None not in (max_year_allocated, before_max_year_allocated) and before_max_year_allocated > 0:
                 change = (max_year_allocated - before_max_year_allocated) / before_max_year_allocated
                 change = round(change, 2)
-                table.set(f'שיעור שינוי {max_year}/{before_max_year} מקורי', change, (max_year+1)*100 + 1,
+                table.set(f'שיעור שינוי {max_year}/{before_max_year} מקורי', change, (max_year+1)*100 + 3,
                     bold=False,
                     parity=1,
                     background_color=color_scheme_red_green(),
@@ -348,7 +367,7 @@ def process_data():
             if None not in (max_year_allocated, before_max_year_revised) and before_max_year_revised > 0:
                 change = (max_year_allocated - before_max_year_revised) / before_max_year_revised
                 change = round(change, 2)
-                table.set(f'שיעור שינוי {before_max_year} על״ש/{max_year} מקורי', change, (max_year+1)*100 + 2,
+                table.set(f'שיעור שינוי {before_max_year} על״ש/{max_year} מקורי', change, (max_year+1)*100 + 4,
                     bold=False,
                     parity=1,
                     background_color=color_scheme_red_green(),
@@ -357,7 +376,7 @@ def process_data():
             if None not in (max_year_revised, max_year_allocated) and max_year_allocated > 0: 
                 change = (max_year_revised - max_year_allocated) / max_year_allocated
                 change = round(change, 2)
-                table.set(f'שיעור שינוי {max_year} מקורי/על״ש', change, (max_year+1)*100 + 3,
+                table.set(f'שיעור שינוי {max_year} מקורי/על״ש', change, (max_year+1)*100 + 5,
                     bold=False,
                     parity=1,
                     background_color=color_scheme_red_green(),
