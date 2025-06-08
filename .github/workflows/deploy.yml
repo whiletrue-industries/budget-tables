@@ -20,10 +20,14 @@ jobs:
       - name: Deploy
         env:
           CREDENTIALS_JSON: ${{ secrets.CREDENTIALS_JSON }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           python proposal-compare.py && \
           python budget-changes.py && \
           python upload_excel_files.py 1Z6fCq46CaAUdI145lNyYGZUhvJzjKn3CFEatWTfLmEw "מעקב תקציב" proposal-compare.xlsx && \
-          python upload_excel_files.py 1wkWr0L3UTu8S4RH8M0HRqhtZgMI1tUgI-qiSYMX10FI "שינויים לשנה השוטפת" budget-changes.xlsx
+          python upload_excel_files.py 1wkWr0L3UTu8S4RH8M0HRqhtZgMI1tUgI-qiSYMX10FI "שינויים לשנה השוטפת" budget-changes.xlsx && \
+          python upload-to-s3.py proposal-compare.xlsx && \
+          python upload-to-s3.py budget-changes.xlsx
 
 
