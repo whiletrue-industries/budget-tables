@@ -97,11 +97,12 @@ def get_proposal_data():
 
 def process_data():
     raw_map, connected = get_proposal_data()
-    max_year = max(r['year'] for r in connected)
+    max_year = max(r['year'] for r in connected if not r['is_proposal'])
+    max_year_completed = any(r['net_revised'] is not None for r in connected if r['year'] == max_year and len(r['code']) >=8)
     all_top_level_codes = sorted(set(r['code'][:2] for r in connected))
     color_scheme_indexes = dict((code, i % 2) for i, code in enumerate(all_top_level_codes))
-    # proposal_year = list(set(r['year'] for r in connected if r['is_proposal']))
-    # proposal_year = max(r['year'] for r in connected)
+    proposal_year = list(set(r['year'] for r in connected if r['is_proposal']))
+    proposal_year = max(r['year'] for r in connected) if proposal_year else None
     # proposal_year = proposal_year[0] if len(proposal_year) == 1 else None
     # if proposal_year is None:
     #     raise Exception('Could not find a single proposal year, bailing out')
@@ -329,14 +330,18 @@ def process_data():
                     if sum_executed is not None:
                         table.set(f'{_year} ביצוע', sum_executed/1000000, _year*100 + 3, **options)
                 if _year == max_year:
-                    if sum_revised is not None and len(code) < 8:
-                        table.set(f'{_year} על״ש', sum_revised/1000000, _year*100 + 2, **options)
+                    if sum_revised is not None and (len(code) < 8 or max_year_completed):
+                        table.set(f'{_year} על״ש', sum_revised/1000000, _year*100 + 4, **options)
+                if _year == proposal_year:
+                    if sum_allocated is not None and len(code) < 8:
+                        table.set(f'{_year} הצעה', sum_allocated/1000000, _year*100 + 5, **options)
             
             max_year_allocated = table.get(f'{max_year} מקורי')
             max_year_revised = table.get(f'{max_year} על״ש')
             before_max_year_allocated = table.get(f'{before_max_year} מקורי')
             before_max_year_revised = table.get(f'{before_max_year} על״ש')
             before_max_year_executed = table.get(f'{before_max_year} ביצוע')
+            proposal_year_allocated = table.get(f'{proposal_year} הצעה') if proposal_year else None
             if None not in (before_max_year_revised, before_max_year_allocated) and before_max_year_allocated > 0:
                 change = (before_max_year_revised - before_max_year_allocated) / before_max_year_allocated
                 change = round(change, 2)
@@ -377,6 +382,24 @@ def process_data():
                 change = (max_year_revised - max_year_allocated) / max_year_allocated
                 change = round(change, 2)
                 table.set(f'שיעור שינוי {max_year} מקורי/על״ש', change, (max_year+1)*100 + 5,
+                    bold=False,
+                    parity=1,
+                    background_color=color_scheme_red_green(),
+                    number_format='0%'
+                )
+            if None not in (proposal_year_allocated, max_year_allocated) and max_year_allocated > 0:
+                change = (proposal_year_allocated - max_year_allocated) / max_year_allocated
+                change = round(change, 2)
+                table.set(f'שיעור שינוי {max_year}/{proposal_year} מקורי', change, (max_year+1)*100 + 6,
+                    bold=False,
+                    parity=1,
+                    background_color=color_scheme_red_green(),
+                    number_format='0%'
+                )
+            if None not in (proposal_year_allocated, max_year_revised) and max_year_revised > 0:
+                change = (proposal_year_allocated - max_year_revised) / max_year_revised
+                change = round(change, 2)
+                table.set(f'שיעור שינוי {max_year} על״ש/{proposal_year} מקורי', change, (max_year+1)*100 + 7,
                     bold=False,
                     parity=1,
                     background_color=color_scheme_red_green(),
