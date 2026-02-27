@@ -1,3 +1,4 @@
+from datetime import datetime
 import requests
 import zipfile
 import io
@@ -5,7 +6,7 @@ import re
 import dataflows as DF
 from table import Table, color_scheme_red_green
 
-YEAR = 2025
+YEAR = datetime.now().year
 WEIRD_ZIP_FILE = f'https://next.obudget.org/datapackages/budget/national/changes/finance-committee.zip'
 DIGITS_RE = re.compile(r'([-\d]+)')
 CHARS = 'אבגדהוזחטיךכלםמןנסעףפץצקרשת'
@@ -324,6 +325,9 @@ def construct_table():
             t.new_row('400', reuse=True)
             t.set('סוג הבקשה', 'סה״כ:', None,  bold=True, align='right', background_color='FFFFFF')
             t.set('בקשת השינוי הוצאה נטו במלש"ח', total_so_far / 1000000, None,  bold=True, align='center', number_format='#,##0.0', background_color='FFFFFF')
+    else:
+        t.new_row('empty')
+        t.set('לא נמצאו העברות תקציביות הנמצאות על שולחן הוועדה.', None, None, align='center', background_color='FFFFFF')
 
 
     t.save('budget-changes.xlsx')
