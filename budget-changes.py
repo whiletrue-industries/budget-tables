@@ -327,7 +327,8 @@ def construct_table():
             t.set('בקשת השינוי הוצאה נטו במלש"ח', total_so_far / 1000000, None,  bold=True, align='center', number_format='#,##0.0', background_color='FFFFFF')
     else:
         t.new_row('empty')
-        t.set('לא נמצאו העברות תקציביות הנמצאות על שולחן הוועדה.', None, None, align='center', background_color='FFFFFF')
+        msg = 'לא נמצאו העברות תקציביות הנמצאות על שולחן וועדת הכספים.'
+        t.set(msg, '-'*len(msg), None, align='center', background_color='FFFFFF')
 
 
     t.save('budget-changes.xlsx')
