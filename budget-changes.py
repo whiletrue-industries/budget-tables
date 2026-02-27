@@ -328,7 +328,7 @@ def construct_table():
     else:
         t.new_row('empty')
         msg = 'לא נמצאו העברות תקציביות הנמצאות על שולחן וועדת הכספים.'
-        t.set('שימו לב:', msg, None, align='center', background_color='FFFFFF', overflow=True, bold=True)
+        t.set('שימו לב:', msg, None, background_color='FFFFFF', overflow=True, bold=True)
 
 
     t.save('budget-changes.xlsx')
