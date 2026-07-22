@@ -298,7 +298,9 @@ def construct_table():
     t = Table('שינויים לשנה השוטפת', None, None)
     rowkey = None
     total_so_far = 0
+    count = 0
     for row in changes:
+        count += 1
         _rowkey = row['key']
         if not _rowkey:
             continue
@@ -325,7 +327,7 @@ def construct_table():
             t.new_row('400', reuse=True)
             t.set('סוג הבקשה', 'סה״כ:', len(ROW_FIELDS),  bold=True, align='right', background_color='FFFFFF')
             t.set('בקשת השינוי הוצאה נטו במלש"ח', total_so_far / 1000000, len(ROW_FIELDS) + 1,  bold=True, align='center', number_format='#,##0.0', background_color='FFFFFF')
-    else:
+    if count == 0:
         t.new_row('empty')
         msg = 'לא נמצאו העברות תקציביות הנמצאות על שולחן וועדת הכספים.'
         t.set('שימו לב:', msg, None, background_color='FFFFFF', overflow=True, bold=True)
