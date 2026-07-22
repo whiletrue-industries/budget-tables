@@ -323,8 +323,8 @@ def construct_table():
         if _rowkey.startswith('000-'):
             total_so_far += row['net_expense_diff']
             t.new_row('400', reuse=True)
-            t.set('סוג הבקשה', 'סה״כ:', None,  bold=True, align='right', background_color='FFFFFF')
-            t.set('בקשת השינוי הוצאה נטו במלש"ח', total_so_far / 1000000, None,  bold=True, align='center', number_format='#,##0.0', background_color='FFFFFF')
+            t.set('סוג הבקשה', 'סה״כ:', len(ROW_FIELDS),  bold=True, align='right', background_color='FFFFFF')
+            t.set('בקשת השינוי הוצאה נטו במלש"ח', total_so_far / 1000000, len(ROW_FIELDS) + 1,  bold=True, align='center', number_format='#,##0.0', background_color='FFFFFF')
     else:
         t.new_row('empty')
         msg = 'לא נמצאו העברות תקציביות הנמצאות על שולחן וועדת הכספים.'
